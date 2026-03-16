@@ -359,6 +359,7 @@ export default function App() {
   const [showNewTrip, setShowNewTrip] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [sort, setSort] = useState("created"); // "created" | "date_asc" | "date_desc"
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
@@ -395,7 +396,17 @@ export default function App() {
   if (loading) return <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Cormorant Garamond', serif", fontSize:"24px", color:C.textMuted }}>✦</div>;
   if (!user) return <AuthScreen onAuth={setUser} />;
 
-  const filtered = trips.filter(t => !filter || t.data.title.toLowerCase().includes(filter.toLowerCase()) || t.data.country.toLowerCase().includes(filter.toLowerCase()));
+  const filtered = trips
+    .filter(t => !filter || t.data.title.toLowerCase().includes(filter.toLowerCase()) || t.data.country.toLowerCase().includes(filter.toLowerCase()))
+    .slice()
+    .sort((a, b) => {
+      if (sort === "created") return 0; // already sorted by created_at from DB
+      const dateA = a.data.startDate || "";
+      const dateB = b.data.startDate || "";
+      if (sort === "date_desc") return dateB.localeCompare(dateA);
+      if (sort === "date_asc") return dateA.localeCompare(dateB);
+      return 0;
+    });
   const totalEntries = trips.reduce((a, t) => a + (t.data.entries?.length || 0), 0);
 
   return (
@@ -416,7 +427,19 @@ export default function App() {
       <div style={{ maxWidth:"780px", margin:"0 auto", padding:"40px 24px" }}>
         {view === "list" ? (
           <>
-            {trips.length > 2 && <input type="text" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search journeys..." style={{ ...styles.input, marginBottom:"28px" }} />}
+            {trips.length > 1 && (
+              <div style={{ display:"flex", gap:"10px", marginBottom:"28px", alignItems:"center", flexWrap:"wrap" }}>
+                <input type="text" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search journeys..." style={{ ...styles.input, flex:1, minWidth:"160px", marginBottom:0 }} />
+                <div style={{ display:"flex", gap:"6px" }}>
+                  {[{val:"created",label:"Latest Added"},{val:"date_desc",label:"Newest Trip"},{val:"date_asc",label:"Oldest Trip"}].map(({val,label}) => (
+                    <button key={val} onClick={() => setSort(val)}
+                      style={{ background: sort===val ? C.accentLight : "#fff", border:`1px solid ${sort===val ? C.accent : C.border}`, borderRadius:"20px", padding:"6px 14px", color: sort===val ? C.accent : C.textSecond, fontFamily:"'Crimson Text', serif", fontSize:"12px", cursor:"pointer", whiteSpace:"nowrap", letterSpacing:"0.04em" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {filtered.length === 0 ? (
               <div style={{ textAlign:"center", padding:"100px 0" }}>
                 <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"36px", color:C.border, marginBottom:"16px" }}>✦</div>
