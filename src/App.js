@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
-const COUNTRIES = ["Greece","Cyprus","United Kingdom","Italy","France","Spain","Portugal","Germany","Turkey","Croatia","Montenegro","Albania","North Macedonia","Bulgaria","Romania","Hungary","Austria","Switzerland","Netherlands","Belgium","Other"];
+const COUNTRIES = ["Greece","Cyprus","United Kingdom","Italy","France","Spain","United States","Germany","Turkey","Croatia","Austria","Switzerland","Netherlands","Belgium","Other"];
 const MOODS = ["✨ Magical","😌 Peaceful","🎉 Exciting","🤔 Reflective","😴 Exhausted","🥰 Romantic","🏃 Adventurous","🍷 Indulgent"];
 
 const C = {
@@ -22,7 +22,9 @@ const styles = {
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
+  const [year, month, day] = dateStr.split("-");
+  const d = new Date(year, month - 1, day);
+  return d.toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
 }
 
 function isImage(filename) {
