@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 
-const COUNTRIES = ["Greece","Cyprus","United Kingdom","Italy","France","Spain","Portugal","Germany","Turkey","Croatia","Montenegro","Albania","North Macedonia","Bulgaria","Romania","Hungary","Austria","Switzerland","Netherlands","Belgium","Other"];
+const COUNTRIES = ["Greece","Cyprus","United Kingdom","Italy","France","Spain","Portugal","Germany","Turkey","Croatia","United States","Albania","North Macedonia","Bulgaria","Romania","Hungary","Austria","Switzerland","Netherlands","Belgium","Other"];
 const MOODS = ["✨ Magical","😌 Peaceful","🎉 Exciting","🤔 Reflective","😴 Exhausted","🥰 Romantic","🏃 Adventurous","🍷 Indulgent"];
 
 const styles = {
@@ -13,7 +13,8 @@ const styles = {
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
-  const d = new Date(dateStr);
+  const [year, month, day] = dateStr.split("-");
+  const d = new Date(year, month - 1, day);
   return d.toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
 }
 
