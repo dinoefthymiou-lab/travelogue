@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 
 const COUNTRIES = ["Greece","Cyprus","United Kingdom","Italy","France","Spain","Portugal","Germany","Turkey","Croatia","Montenegro","Albania","North Macedonia","Bulgaria","Romania","Hungary","Austria","Switzerland","Netherlands","Belgium","Other"];
-const MOODS = ["✨ Magical","😌 Peaceful","🎉 Exciting","🤔 Reflective","😴 Exhausted","🥰 Romantic","🏃 Adventurous","🍷 Indulgent"];
+const MOODS = ["✨ Amazing","😌 Peaceful","🎉 Exciting","🤔 Reflective","😴 Exhausted","🥰 Romantic","🏃 Adventurous","🍷 Indulgent"];
 
 const C = {
   bg:"#f0f2f4", bgCard:"#ffffff", bgModal:"#f8f9fa", bgHeader:"rgba(240,242,244,0.95)",
@@ -201,7 +201,7 @@ function TripDetail({ trip, onBack, onUpdate }) {
       <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"12px", color:C.textMuted, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:"16px" }}>
         {data.entries?.length || 0} {data.entries?.length === 1 ? "Entry" : "Entries"}
       </div>
-      {(data.entries || []).slice().reverse().map(entry => (
+     {(data.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map(entry => (
         <div key={entry.id} style={{ background:C.bgCard, border:`1px solid ${C.border}`, borderLeft:`4px solid ${C.accent}`, borderRadius:"10px", padding:"24px 28px", marginBottom:"14px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
           <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"12px", color:C.accent, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:"12px" }}>{formatDate(entry.date)}</div>
           {editingEntry === entry.id ? (
