@@ -292,7 +292,7 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
       <input type="file" ref={fileInputRef} style={{ display:"none" }} multiple accept="image/*,.pdf,.doc,.docx"
         onChange={e => handleFileUpload(e, pendingUploadEntryId)} />
 
-      {(data.entries || []).slice().reverse().map(entry => (
+      {(data.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map(entry => (
         <div key={entry.id} style={{ background:C.bgCard, border:`1px solid ${C.border}`, borderLeft:`4px solid ${C.accent}`, borderRadius:"10px", padding:"24px 28px", marginBottom:"14px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
           <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"12px", color:C.accent, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:"12px" }}>{formatDate(entry.date)}</div>
 
