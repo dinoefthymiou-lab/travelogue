@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 
-const COUNTRIES = ["Greece","Cyprus","United Kingdom","Italy","France","Spain","United States","Germany","Turkey","Croatia","Austria","Switzerland","Netherlands","Belgium","Other"];
+const COUNTRIES = ["Greece","Cyprus","United Kingdom","Italy","France","Spain","Portugal","Germany","Turkey","Croatia","Montenegro","Albania","North Macedonia","Bulgaria","Romania","Hungary","Austria","Switzerland","Netherlands","Belgium","USA","Other"];
 const MOODS = ["✨ Magical","😌 Peaceful","🎉 Exciting","🤔 Reflective","😴 Exhausted","🥰 Romantic","🏃 Adventurous","🍷 Indulgent"];
 
 const C = {
@@ -27,15 +27,15 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
 }
 
-function isImage(filename) {
-  return /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(filename);
-}
-
+function isImage(filename) { return /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(filename); }
 function fileIcon(filename) {
   if (isImage(filename)) return "🖼️";
   if (/\.pdf$/i.test(filename)) return "📄";
   if (/\.(doc|docx)$/i.test(filename)) return "📝";
   return "📎";
+}
+function genShareId() {
+  return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 }
 
 // ── Auth Screen ──────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ function AuthScreen({ onAuth }) {
   );
 }
 
-// ── Trip Form (shared by New and Edit) ───────────────────────────────────────
+// ── Trip Form ────────────────────────────────────────────────────────────────
 function TripForm({ initial, onSave, onClose, title, submitLabel }) {
   const [form, setForm] = useState(initial);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -138,6 +138,46 @@ function TripForm({ initial, onSave, onClose, title, submitLabel }) {
   );
 }
 
+// ── Share Modal ──────────────────────────────────────────────────────────────
+function ShareModal({ trip, onClose, onGenerate, onRevoke }) {
+  const [copied, setCopied] = useState(false);
+  const shareId = trip.share_id;
+  const shareUrl = shareId ? `${window.location.origin}/share/${shareId}` : null;
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(30,45,61,0.4)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", backdropFilter:"blur(4px)" }}>
+      <div style={{ background:C.bgModal, border:`1px solid ${C.border}`, borderRadius:"12px", padding:"40px", maxWidth:"480px", width:"100%", boxShadow:"0 8px 40px rgba(0,0,0,0.12)" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"26px", color:C.textPrimary, marginBottom:"6px", fontWeight:500 }}>Share "{trip.data.title}"</div>
+        <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"13px", color:C.textMuted, marginBottom:"32px" }}>
+          Anyone with this link can view this trip — no account needed. They can't edit or see your other trips.
+        </div>
+
+        {shareUrl ? (
+          <>
+            <div style={{ display:"flex", gap:"10px", marginBottom:"20px" }}>
+              <input readOnly value={shareUrl} style={{ ...styles.input, fontSize:"14px", color:C.accent }} onClick={e => e.target.select()} />
+              <button onClick={copyLink} style={{ ...styles.btn, padding:"10px 20px", whiteSpace:"nowrap" }}>{copied ? "Copied!" : "Copy"}</button>
+            </div>
+            <button onClick={() => onRevoke(trip)} style={{ ...styles.btnGhost, fontSize:"12px", color:C.error, borderColor:C.error }}>Revoke Link</button>
+          </>
+        ) : (
+          <button onClick={() => onGenerate(trip)} style={{ ...styles.btn, width:"100%" }}>Generate Share Link</button>
+        )}
+
+        <div style={{ marginTop:"28px", textAlign:"right" }}>
+          <button onClick={onClose} style={styles.btnGhost}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Trip Card ────────────────────────────────────────────────────────────────
 function TripCard({ trip, onClick, onDelete }) {
   const data = trip.data;
@@ -149,7 +189,9 @@ function TripCard({ trip, onClick, onDelete }) {
       <div style={{ position:"absolute", top:0, left:0, width:"4px", height:"100%", background:C.stripe }} />
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
         <div style={{ flex:1 }}>
-          <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"22px", color:C.textPrimary, marginBottom:"6px", fontWeight:500 }}>{data.title}</div>
+          <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"22px", color:C.textPrimary, marginBottom:"6px", fontWeight:500 }}>
+            {data.title} {trip.share_id && <span title="Shared" style={{ fontSize:"13px", color:C.accent }}>🔗</span>}
+          </div>
           <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"13px", color:C.accent, letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:"10px" }}>
             {data.country} · {formatDate(data.startDate)}{data.endDate ? ` — ${formatDate(data.endDate)}` : ""}
           </div>
@@ -171,22 +213,16 @@ function TripCard({ trip, onClick, onDelete }) {
   );
 }
 
-// ── Attachment Viewer ────────────────────────────────────────────────────────
+// ── Attachment List ──────────────────────────────────────────────────────────
 function AttachmentList({ attachments, onDelete }) {
   if (!attachments || attachments.length === 0) return null;
   return (
     <div style={{ display:"flex", flexWrap:"wrap", gap:"10px", marginTop:"14px" }}>
-      {attachments.map(att => (
+      {attachments.filter(a => !isImage(a.name)).map(att => (
         <div key={att.path} style={{ display:"flex", alignItems:"center", gap:"8px", background:C.accentLight, border:`1px solid ${C.border}`, borderRadius:"8px", padding:"6px 12px", maxWidth:"240px" }}>
           <span style={{ fontSize:"16px" }}>{fileIcon(att.name)}</span>
-          {isImage(att.name) ? (
-            <a href={att.url} target="_blank" rel="noreferrer" style={{ color:C.accent, fontFamily:"'Crimson Text', serif", fontSize:"13px", textDecoration:"none", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{att.name}</a>
-          ) : (
-            <a href={att.url} download={att.name} style={{ color:C.accent, fontFamily:"'Crimson Text', serif", fontSize:"13px", textDecoration:"none", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{att.name}</a>
-          )}
-          {onDelete && (
-            <button onClick={() => onDelete(att)} style={{ background:"none", border:"none", color:C.textMuted, cursor:"pointer", fontSize:"14px", padding:"0", lineHeight:1, flexShrink:0 }}>✕</button>
-          )}
+          <a href={att.url} download={att.name} style={{ color:C.accent, fontFamily:"'Crimson Text', serif", fontSize:"13px", textDecoration:"none", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{att.name}</a>
+          {onDelete && <button onClick={() => onDelete(att)} style={{ background:"none", border:"none", color:C.textMuted, cursor:"pointer", fontSize:"14px", padding:"0", lineHeight:1, flexShrink:0 }}>✕</button>}
         </div>
       ))}
     </div>
@@ -194,11 +230,11 @@ function AttachmentList({ attachments, onDelete }) {
 }
 
 // ── Trip Detail ──────────────────────────────────────────────────────────────
-function TripDetail({ trip, onBack, onUpdate, userId }) {
+function TripDetail({ trip, onBack, onUpdate, userId, onShare }) {
   const [newEntry, setNewEntry] = useState("");
   const [newEntryDate, setNewEntryDate] = useState(new Date().toISOString().split("T")[0]);
   const [editingEntry, setEditingEntry] = useState(null);
-  const [uploading, setUploading] = useState(null); // entryId or "trip"
+  const [uploading, setUploading] = useState(null);
   const [editingTrip, setEditingTrip] = useState(false);
   const fileInputRef = useRef();
   const [pendingUploadEntryId, setPendingUploadEntryId] = useState(null);
@@ -212,11 +248,7 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
   };
 
   const deleteEntry = (id) => onUpdate(trip, { ...data, entries: data.entries.filter(e => e.id !== id) });
-
-  const saveEdit = (id, text) => {
-    onUpdate(trip, { ...data, entries: data.entries.map(e => e.id === id ? { ...e, text } : e) });
-    setEditingEntry(null);
-  };
+  const saveEdit = (id, text) => { onUpdate(trip, { ...data, entries: data.entries.map(e => e.id === id ? { ...e, text } : e) }); setEditingEntry(null); };
 
   const handleFileUpload = async (e, entryId) => {
     const files = Array.from(e.target.files);
@@ -233,9 +265,7 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
       }
     }
     if (newAttachments.length) {
-      const updatedEntries = data.entries.map(e =>
-        e.id === entryId ? { ...e, attachments: [...(e.attachments || []), ...newAttachments] } : e
-      );
+      const updatedEntries = data.entries.map(e => e.id === entryId ? { ...e, attachments: [...(e.attachments || []), ...newAttachments] } : e);
       onUpdate(trip, { ...data, entries: updatedEntries });
     }
     setUploading(null);
@@ -244,9 +274,7 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
 
   const deleteAttachment = async (entryId, att) => {
     await supabase.storage.from("attachments").remove([att.path]);
-    const updatedEntries = data.entries.map(e =>
-      e.id === entryId ? { ...e, attachments: (e.attachments || []).filter(a => a.path !== att.path) } : e
-    );
+    const updatedEntries = data.entries.map(e => e.id === entryId ? { ...e, attachments: (e.attachments || []).filter(a => a.path !== att.path) } : e);
     onUpdate(trip, { ...data, entries: updatedEntries });
   };
 
@@ -256,7 +284,6 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
         ← All Journeys
       </button>
 
-      {/* Trip Header */}
       <div style={{ marginBottom:"24px", background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:"10px", padding:"32px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
           <div style={{ flex:1 }}>
@@ -266,11 +293,13 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
             </div>
             {data.mood && <div style={{ fontSize:"14px", color:C.textMuted }}>{data.mood}</div>}
           </div>
-          <button onClick={() => setEditingTrip(true)} style={styles.btnSmall}>Edit</button>
+          <div style={{ display:"flex", gap:"8px" }}>
+            <button onClick={() => onShare(trip)} style={styles.btnSmall}>🔗 Share</button>
+            <button onClick={() => setEditingTrip(true)} style={styles.btnSmall}>Edit</button>
+          </div>
         </div>
       </div>
 
-      {/* Add Entry */}
       <div style={{ background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:"10px", padding:"28px 32px", marginBottom:"28px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
         <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"12px", color:C.textMuted, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:"16px" }}>Add Entry</div>
         <input type="date" value={newEntryDate} onChange={e => setNewEntryDate(e.target.value)} style={{ ...styles.input, width:"auto", marginBottom:"12px" }} />
@@ -283,19 +312,16 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
         </div>
       </div>
 
-      {/* Entries */}
       <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"12px", color:C.textMuted, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:"16px" }}>
         {data.entries?.length || 0} {data.entries?.length === 1 ? "Entry" : "Entries"}
       </div>
 
-      {/* Hidden file input */}
       <input type="file" ref={fileInputRef} style={{ display:"none" }} multiple accept="image/*,.pdf,.doc,.docx"
         onChange={e => handleFileUpload(e, pendingUploadEntryId)} />
 
       {(data.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map(entry => (
         <div key={entry.id} style={{ background:C.bgCard, border:`1px solid ${C.border}`, borderLeft:`4px solid ${C.accent}`, borderRadius:"10px", padding:"24px 28px", marginBottom:"14px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
           <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"12px", color:C.accent, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:"12px" }}>{formatDate(entry.date)}</div>
-
           {editingEntry === entry.id ? (
             <div>
               <textarea defaultValue={entry.text} id={`edit-${entry.id}`} rows={6} style={{ ...styles.input, resize:"vertical", lineHeight:1.8, fontSize:"17px" }} />
@@ -307,11 +333,7 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
           ) : (
             <div>
               <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"18px", color:C.textPrimary, lineHeight:1.85, whiteSpace:"pre-wrap" }}>{entry.text}</div>
-
-              {/* Attachments */}
               <AttachmentList attachments={entry.attachments} onDelete={att => deleteAttachment(entry.id, att)} />
-
-              {/* Image previews */}
               {(entry.attachments || []).filter(a => isImage(a.name)).length > 0 && (
                 <div style={{ display:"flex", flexWrap:"wrap", gap:"10px", marginTop:"14px" }}>
                   {entry.attachments.filter(a => isImage(a.name)).map(att => (
@@ -321,7 +343,6 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
                   ))}
                 </div>
               )}
-
               <div style={{ display:"flex", gap:"16px", marginTop:"14px", alignItems:"center" }}>
                 <button onClick={() => setEditingEntry(entry.id)} style={{ background:"none", border:"none", color:C.textMuted, fontFamily:"'Crimson Text', serif", fontSize:"12px", letterSpacing:"0.1em", textTransform:"uppercase", cursor:"pointer", padding:0 }}>Edit</button>
                 <button onClick={() => deleteEntry(entry.id)} style={{ background:"none", border:"none", color:C.textMuted, fontFamily:"'Crimson Text', serif", fontSize:"12px", letterSpacing:"0.1em", textTransform:"uppercase", cursor:"pointer", padding:0 }}>Delete</button>
@@ -342,8 +363,7 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
       {editingTrip && (
         <TripForm
           initial={{ title: data.title, country: data.country, startDate: data.startDate || "", endDate: data.endDate || "", mood: data.mood || "" }}
-          title="Edit Journey"
-          submitLabel="Save Changes"
+          title="Edit Journey" submitLabel="Save Changes"
           onSave={updated => { onUpdate(trip, { ...data, ...updated }); setEditingTrip(false); }}
           onClose={() => setEditingTrip(false)}
         />
@@ -352,8 +372,83 @@ function TripDetail({ trip, onBack, onUpdate, userId }) {
   );
 }
 
+// ── Public Read-Only Share View ──────────────────────────────────────────────
+function PublicTripView({ shareId }) {
+  const [trip, setTrip] = useState(null);
+  const [status, setStatus] = useState("loading"); // loading | found | notfound
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase.from("trips").select("*").eq("share_id", shareId).single();
+      if (error || !data) { setStatus("notfound"); return; }
+      setTrip(data);
+      setStatus("found");
+    })();
+  }, [shareId]);
+
+  if (status === "loading") {
+    return <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Cormorant Garamond', serif", fontSize:"24px", color:C.textMuted }}>✦</div>;
+  }
+  if (status === "notfound") {
+    return (
+      <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"12px" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"28px", color:C.textMuted }}>This link isn't valid</div>
+        <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"15px", color:C.textTiny }}>The trip may have been unshared, or the link is incorrect.</div>
+      </div>
+    );
+  }
+
+  const data = trip.data;
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg, color:C.textPrimary, fontFamily:"'Crimson Text', serif" }}>
+      <div style={{ borderBottom:`1px solid ${C.border}`, padding:"20px 48px", background:C.bgHeader, backdropFilter:"blur(12px)" }}>
+        <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"24px", color:C.textPrimary, letterSpacing:"0.06em", fontWeight:500 }}>✦ TRAVELOGUE</div>
+        <div style={{ fontSize:"12px", color:C.textMuted, letterSpacing:"0.08em", marginTop:"2px" }}>Shared journey — view only</div>
+      </div>
+
+      <div style={{ maxWidth:"700px", margin:"0 auto", padding:"40px 24px" }}>
+        <div style={{ marginBottom:"24px", background:C.bgCard, border:`1px solid ${C.border}`, borderRadius:"10px", padding:"32px", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"38px", color:C.textPrimary, lineHeight:1.1, marginBottom:"12px", fontWeight:500 }}>{data.title}</div>
+          <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"14px", color:C.accent, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"8px" }}>
+            {data.country} · {formatDate(data.startDate)}{data.endDate ? ` — ${formatDate(data.endDate)}` : ""}
+          </div>
+          {data.mood && <div style={{ fontSize:"14px", color:C.textMuted }}>{data.mood}</div>}
+        </div>
+
+        {(data.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date)).map(entry => (
+          <div key={entry.id} style={{ background:C.bgCard, border:`1px solid ${C.border}`, borderLeft:`4px solid ${C.accent}`, borderRadius:"10px", padding:"24px 28px", marginBottom:"14px", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+            <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"12px", color:C.accent, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:"12px" }}>{formatDate(entry.date)}</div>
+            <div style={{ fontFamily:"'Crimson Text', serif", fontSize:"18px", color:C.textPrimary, lineHeight:1.85, whiteSpace:"pre-wrap" }}>{entry.text}</div>
+            {(entry.attachments || []).filter(a => isImage(a.name)).length > 0 && (
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"10px", marginTop:"14px" }}>
+                {entry.attachments.filter(a => isImage(a.name)).map(att => (
+                  <a key={att.path} href={att.url} target="_blank" rel="noreferrer">
+                    <img src={att.url} alt={att.name} style={{ width:"140px", height:"105px", objectFit:"cover", borderRadius:"6px", border:`1px solid ${C.border}` }} />
+                  </a>
+                ))}
+              </div>
+            )}
+            <AttachmentList attachments={entry.attachments} />
+          </div>
+        ))}
+
+        <div style={{ textAlign:"center", padding:"32px 0", fontSize:"13px", color:C.textTiny, fontStyle:"italic" }}>
+          Shared via Travelogue ✦
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  // Check if this is a public share URL
+  const path = window.location.pathname;
+  const shareMatch = path.match(/^\/share\/([a-zA-Z0-9]+)/);
+  if (shareMatch) {
+    return <PublicTripView shareId={shareMatch[1]} />;
+  }
+
   const [user, setUser] = useState(null);
   const [trips, setTrips] = useState([]);
   const [view, setView] = useState("list");
@@ -361,7 +456,8 @@ export default function App() {
   const [showNewTrip, setShowNewTrip] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
-  const [sort, setSort] = useState("created"); // "created" | "date_asc" | "date_desc"
+  const [sort, setSort] = useState("created");
+  const [sharingTrip, setSharingTrip] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
@@ -393,6 +489,27 @@ export default function App() {
     if (!error) { const updated = data[0]; setTrips(t => t.map(x => x.id === updated.id ? updated : x)); setSelectedTrip(updated); }
   };
 
+  const generateShare = async (trip) => {
+    const shareId = genShareId();
+    const { data, error } = await supabase.from("trips").update({ share_id: shareId }).eq("id", trip.id).select();
+    if (!error) {
+      const updated = data[0];
+      setTrips(t => t.map(x => x.id === updated.id ? updated : x));
+      setSharingTrip(updated);
+      if (selectedTrip?.id === updated.id) setSelectedTrip(updated);
+    }
+  };
+
+  const revokeShare = async (trip) => {
+    const { data, error } = await supabase.from("trips").update({ share_id: null }).eq("id", trip.id).select();
+    if (!error) {
+      const updated = data[0];
+      setTrips(t => t.map(x => x.id === updated.id ? updated : x));
+      setSharingTrip(updated);
+      if (selectedTrip?.id === updated.id) setSelectedTrip(updated);
+    }
+  };
+
   const signOut = async () => { await supabase.auth.signOut(); setTrips([]); setView("list"); };
 
   if (loading) return <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Cormorant Garamond', serif", fontSize:"24px", color:C.textMuted }}>✦</div>;
@@ -402,7 +519,7 @@ export default function App() {
     .filter(t => !filter || t.data.title.toLowerCase().includes(filter.toLowerCase()) || t.data.country.toLowerCase().includes(filter.toLowerCase()))
     .slice()
     .sort((a, b) => {
-      if (sort === "created") return 0; // already sorted by created_at from DB
+      if (sort === "created") return 0;
       const dateA = a.data.startDate || "";
       const dateB = b.data.startDate || "";
       if (sort === "date_desc") return dateB.localeCompare(dateA);
@@ -455,18 +572,20 @@ export default function App() {
             )}
           </>
         ) : (
-          <TripDetail trip={selectedTrip} onBack={() => { setView("list"); setSelectedTrip(null); }} onUpdate={updateTrip} userId={user.id} />
+          <TripDetail trip={selectedTrip} onBack={() => { setView("list"); setSelectedTrip(null); }} onUpdate={updateTrip} userId={user.id} onShare={setSharingTrip} />
         )}
       </div>
 
       {showNewTrip && (
         <TripForm
           initial={{ title:"", country:"Greece", startDate:"", endDate:"", mood:"", notes:"" }}
-          title="New Journey"
-          submitLabel="Begin Journey"
-          onSave={addTrip}
-          onClose={() => setShowNewTrip(false)}
+          title="New Journey" submitLabel="Begin Journey"
+          onSave={addTrip} onClose={() => setShowNewTrip(false)}
         />
+      )}
+
+      {sharingTrip && (
+        <ShareModal trip={sharingTrip} onClose={() => setSharingTrip(null)} onGenerate={generateShare} onRevoke={revokeShare} />
       )}
     </div>
   );
